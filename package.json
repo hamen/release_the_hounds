@@ -1,0 +1,35 @@
+{
+  "name": "auto-publisher",
+  "version": "0.1.0",
+  "description": "Automated mobile app publishing pipeline for Google Play Store and iOS App Store",
+  "main": "src/index.js",
+  "type": "module",
+  "bin": {
+    "auto-publisher": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/cli.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "google-play",
+    "app-store",
+    "automation",
+    "publishing",
+    "firebase",
+    "oauth2"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "googleapis": "^144.0.0",
+    "express": "^4.21.1",
+    "open": "^10.1.0",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5"
+  }
+}
+
