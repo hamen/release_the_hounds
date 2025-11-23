@@ -55,3 +55,19 @@ export async function fileExists(filePath) {
   }
 }
 
+/**
+ * Delete a file
+ */
+export async function deleteFile(filePath) {
+  const { unlink } = await import('fs/promises');
+  try {
+    await unlink(filePath);
+    return true;
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return false; // File doesn't exist
+    }
+    throw error;
+  }
+}
+

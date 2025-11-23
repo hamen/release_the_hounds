@@ -10,7 +10,7 @@
 
 ## Current Implementation Status
 
-### ✅ Completed (Phase 1 - Foundation)
+### ✅ Completed (Phase 1 & 2 - Foundation + Firebase)
 
 1. **OAuth2 Authentication via gcloud CLI**
    - Uses `gcloud auth login` and `gcloud auth application-default login` for fully automated authentication
@@ -29,17 +29,20 @@
      - `./release-the-hounds.sh check-deps` - Verify all dependencies
      - `./release-the-hounds.sh auth` - Authenticate with Google
      - `./release-the-hounds.sh status` - Check authentication status
-     - `./release-the-hounds.sh create-project` - Create GCP project
+     - `./release-the-hounds.sh create-project` - Create GCP project (full pipeline)
      - `./release-the-hounds.sh list-projects` - List accessible projects
+     - `./release-the-hounds.sh setup-service-account` - Setup service account for existing project
+     - `./release-the-hounds.sh setup-firebase` - Setup Firebase project and apps
 
-3. **GCP Project Creation Module**
-   - `src/gcp/project.js` - Handles project creation via Cloud Resource Manager API
+3. **GCP Project Creation Module** (`src/gcp/project.js`)
+   - Handles project creation via Cloud Resource Manager API
    - Generates unique project IDs: `autoapp-{timestamp}-{random}`
    - Polls for project activation
    - Saves project state to `.autopublish/state.json`
+   - Can switch between projects: `switchProject()` function
 
-4. **API Enabling Module**
-   - `src/gcp/apis.js` - Enables required Google APIs programmatically
+4. **API Enabling Module** (`src/gcp/apis.js`)
+   - Enables required Google APIs programmatically
    - Required APIs:
      - `iam.googleapis.com`
      - `cloudresourcemanager.googleapis.com`
@@ -48,16 +51,50 @@
      - `serviceusage.googleapis.com`
    - Handles API enablement polling
 
-5. **Dependency Checking**
-   - `src/utils/check-dependencies.js` - Verifies all required tools
+5. **Service Account & IAM Module** (`src/gcp/service-account.js`, `src/gcp/iam.js`)
+   - Creates service account programmatically (`app-publisher@{projectId}.iam.gserviceaccount.com`)
+   - Generates and downloads private key JSON
+   - Stores keys in `.autopublish/service-accounts/service-account-{projectId}.json`
+   - Grants required IAM roles automatically:
+     - `roles/editor` - General project editor role
+     - `roles/firebase.admin` - Firebase Admin role
+   - **Important**: `roles/androidpublisher` is NOT granted via GCP IAM - Play Console permissions are managed directly in Play Console
+   - Integrated into `create-project` command for full pipeline
+   - Can also be run separately: `setup-service-account` command
+
+6. **Firebase Project Setup Module** (`src/firebase/project.js`)
+   - **Firebase Project Management**:
+     - Lists all Firebase projects user has access to
+     - Interactive project picker - can select existing Firebase project or create new
+     - Handles Firebase ↔ GCP project 1:1 relationship correctly
+     - Automatically switches GCP project state when selecting different Firebase project
+     - Saves Firebase project state to avoid re-prompting
+   - **App Management**:
+     - Lists existing Android/iOS apps in Firebase project
+     - Detects existing apps and reuses them (no duplicates)
+     - Interactive prompts for package/bundle IDs if apps don't exist
+     - Downloads config files for all existing apps automatically
+   - **Config File Downloads**:
+     - `google-services.json` → `.autopublish/firebase-config/google-services.json`
+     - `GoogleService-Info.plist` → `.autopublish/firebase-config/GoogleService-Info.plist`
+     - Multiple apps get unique filenames in same directory
+   - **Key Features**:
+     - Gracefully handles 404 errors (returns empty arrays instead of throwing)
+     - Verifies Firebase project exists before listing apps
+     - Smart app detection - finds existing apps by package/bundle ID
+
+7. **Dependency Checking** (`src/utils/check-dependencies.js`)
+   - Verifies all required tools
    - Checks: Node.js, npm, gcloud CLI
    - Provides installation instructions if missing
 
-### 🚧 In Progress / Next Steps
+8. **Interactive Prompts** (`src/utils/prompt.js`)
+   - `question()` - Simple text input
+   - `selectOption()` - Choose from list of options
+   - `confirm()` - Yes/no confirmation
 
-- Service Account creation and key generation
-- IAM role assignment
-- Firebase project creation and Android/iOS app registration
+### 🚧 Next Steps (Phase 3+)
+
 - ADB automation for Android screenshot capture
 - Play Store app creation and publishing
 - iOS App Store automation (future)
@@ -75,26 +112,38 @@
 
 ```
 release_the_hounds/
-├── release-the-hounds.sh    # Main entry point script
+├── release-the-hounds.sh         # Main entry point script
 ├── src/
-│   ├── cli.js               # CLI command definitions
+│   ├── cli.js                    # CLI command definitions
+│   ├── config.js                 # Configuration constants (PATHS, etc.)
 │   ├── auth/
-│   │   ├── gcloud-auth.js  # gcloud-based authentication
-│   │   └── oauth.js        # OAuth2 flow (legacy, not used)
+│   │   ├── gcloud-auth.js       # gcloud-based authentication (ACTIVE)
+│   │   └── oauth.js             # OAuth2 flow (LEGACY - not used)
 │   ├── gcp/
-│   │   ├── project.js       # GCP project management
-│   │   └── apis.js         # API enabling
-│   ├── utils/
-│   │   ├── fs.js           # File system utilities
-│   │   └── check-dependencies.js  # Dependency checking
-│   └── config.js           # Configuration constants
-├── .autopublish/           # Secrets and state (gitignored)
-│   ├── refresh-token.json  # Not used (gcloud handles this)
-│   └── state.json          # Current project state
-├── docs/                   # Documentation
-│   ├── overview.md         # 3000-foot overview
-│   ├── todo.md            # Implementation tracking
-│   └── oauth-implementation.md  # OAuth details
+│   │   ├── project.js           # GCP project management
+│   │   ├── apis.js              # API enabling
+│   │   ├── service-account.js   # Service account creation & keys
+│   │   └── iam.js               # IAM role assignment
+│   ├── firebase/
+│   │   └── project.js           # Firebase project & app management
+│   └── utils/
+│       ├── fs.js                # File system utilities
+│       ├── check-dependencies.js # Dependency checking
+│       └── prompt.js            # Interactive prompts
+├── .autopublish/                # Secrets and state (gitignored)
+│   ├── state.json               # Current project state
+│   ├── service-accounts/        # Service account keys
+│   │   └── service-account-{projectId}.json
+│   └── firebase-config/         # Firebase config files
+│       ├── google-services.json
+│       └── GoogleService-Info.plist
+├── docs/                        # Documentation
+│   ├── overview.md              # 3000-foot overview
+│   ├── todo.md                  # Implementation tracking (OUTDATED)
+│   ├── oauth-implementation.md  # OAuth details (OUTDATED - we use gcloud now)
+│   └── api-breakdown.md         # API documentation
+├── QUICK_SETUP.md               # OLD - Manual OAuth setup (OUTDATED)
+├── README.md                    # User-facing documentation
 └── package.json
 ```
 
@@ -112,18 +161,44 @@ release_the_hounds/
 
 ### 3. State Management
 - State stored in `.autopublish/` directory (gitignored)
-- `state.json` contains current project info
+- `state.json` contains current project info and Firebase project info
 - No sensitive data in git (all credentials handled by gcloud)
+- **File Organization**:
+  - Service account keys: `.autopublish/service-accounts/`
+  - Firebase configs: `.autopublish/firebase-config/`
+  - State: `.autopublish/state.json`
 
-### 4. Error Handling
+### 4. Firebase Project ↔ GCP Project Relationship
+- **Critical**: Firebase projects are 1:1 with GCP projects
+- You CANNOT link an existing Firebase project to a different GCP project
+- When user selects existing Firebase project linked to different GCP project:
+  - Tool automatically switches GCP project state
+  - Saves Firebase project state to avoid re-prompting
+- Firebase project state is saved and checked first before API calls
+
+### 5. Error Handling
 - Always check authentication before API calls
 - Provide clear error messages with next steps
 - Check dependencies upfront in the shell script
+- **404 Handling**: List functions return empty arrays instead of throwing (Firebase might not be initialized yet)
 
-### 5. Google APIs Import Pattern
+### 6. Google APIs Import Pattern
 - Use `import { google } from 'googleapis'` (not named imports)
 - Then: `google.cloudresourcemanager({ version: 'v1', auth })`
 - This works with ES modules
+
+### 7. IAM Roles
+- `roles/editor` - General project editor (NOT `roles/cloudresourcemanager.projectEditor` - that doesn't exist)
+- `roles/firebase.admin` - Firebase Admin role
+- `roles/androidpublisher` - **NOT granted via GCP IAM** - Play Console permissions are managed separately
+
+### 8. Firebase API Endpoints
+- Base URL: `https://firebase.googleapis.com/v1beta1`
+- List projects: `GET /projects`
+- Get project: `GET /projects/{projectId}`
+- List Android apps: `GET /projects/{projectId}/androidApps` (returns 404 if no apps)
+- List iOS apps: `GET /projects/{projectId}/iosApps` (returns 404 if no apps)
+- Download config: `GET /projects/{projectId}/androidApps/{appId}/config`
 
 ## Important Commands Reference
 
@@ -137,35 +212,49 @@ release_the_hounds/
 # Check status
 ./release-the-hounds.sh status
 
-# Create GCP project
-./release-the-hounds.sh create-project
+# Create GCP project (full pipeline: project + APIs + service account + IAM roles)
+./release-the-hounds.sh create-project --name "My App"
 
 # List projects
 ./release-the-hounds.sh list-projects
+
+# Setup service account (for existing projects or if skipped during create-project)
+./release-the-hounds.sh setup-service-account [--force]
+
+# Setup Firebase (interactive - shows project picker if needed)
+./release-the-hounds.sh setup-firebase
+
+# Setup Firebase with specific apps
+./release-the-hounds.sh setup-firebase \
+  --android-package "com.example.app" \
+  --android-name "My App" \
+  --ios-bundle "com.example.app" \
+  --ios-name "My App"
+
+# Non-interactive Firebase setup
+./release-the-hounds.sh setup-firebase --no-interactive
 ```
+
+## Streamlined Workflow
+
+1. **Authenticate** (one-time): `./release-the-hounds.sh auth`
+2. **Create Project** (everything): `./release-the-hounds.sh create-project --name "My App"`
+   - Creates project
+   - Enables APIs
+   - Creates service account
+   - Grants IAM roles
+3. **Firebase Setup**: `./release-the-hounds.sh setup-firebase`
+   - Shows project picker if no Firebase project exists
+   - Lists existing apps
+   - Downloads config files automatically
+   - Or prompts to create new apps interactively
 
 ## Testing Notes
 
-- Authentication works: User successfully authenticated as `imorgillo@gmail.com`
-- gcloud CLI version: 548.0.0
-- Node.js version: v20.19.4
+- Authentication works: Successfully authenticated via gcloud CLI
 - All dependencies verified working
-
-## Future Architecture Considerations
-
-### MCP Server (Future)
-- Initially planned as MCP server for Cursor integration
-- **Decision**: Build as CLI first, convert to MCP later
-- Reason: Faster iteration, easier testing, better developer experience
-- CLI commands can be wrapped as MCP tools later
-
-### Phase Breakdown
-1. ✅ OAuth + GCP Setup (in progress)
-2. Firebase Integration
-3. Android Build & Screenshot Automation (ADB)
-4. Play Store Publishing
-5. iOS Automation (Fastlane)
-6. App Store Publishing
+- Firebase project picker tested with multiple existing projects
+- Existing apps detected and config files downloaded successfully
 
 ## Common Issues & Solutions
 
@@ -177,6 +266,12 @@ release_the_hounds/
 
 ### Issue: API import errors with googleapis
 - **Solution**: Use `import { google } from 'googleapis'` then `google.serviceName({ version: 'v1', auth })`
+
+### Issue: "Not Found" when listing Firebase apps
+- **Solution**: This is normal if Firebase isn't initialized or no apps exist. The tool handles this gracefully by returning empty arrays.
+
+### Issue: Firebase project picker keeps asking
+- **Solution**: Firebase project state is saved. If it keeps asking, check `.autopublish/state.json` has `firebaseProject` field.
 
 ## Development Workflow
 
@@ -191,40 +286,54 @@ release_the_hounds/
 - `src/cli.js` - Command definitions
 - `src/auth/gcloud-auth.js` - Authentication logic
 - `src/gcp/project.js` - GCP project operations
+- `src/firebase/project.js` - Firebase operations
+- `src/config.js` - Configuration constants (PATHS, etc.)
 - `.autopublish/` - State directory (gitignored, don't commit)
 
 ## Next Major Features to Implement
 
-1. **Service Account Creation** (`src/gcp/service-account.js`)
-   - Create service account programmatically
-   - Generate and download key JSON
-   - Store in `.autopublish/service-account.json`
-
-2. **IAM Role Assignment** (`src/gcp/iam.js`)
-   - Grant roles: `roles/cloudresourcemanager.projectEditor`, `roles/firebase.admin`, `roles/androidpublisher`
-
-3. **Firebase Project Setup** (`src/firebase/project.js`)
-   - Create Firebase project linked to GCP project
-   - Add Android app with package name
-   - Add iOS app with bundle ID
-   - Download config files
-
-4. **ADB Automation** (`src/android/adb.js`)
+1. **ADB Automation** (`src/android/adb.js` - to be created)
    - Detect connected devices
    - Install and launch apps
    - Navigate UI programmatically
    - Capture screenshots
 
-5. **Play Store Publishing** (`src/play-store/publish.js`)
+2. **Play Store Publishing** (`src/play-store/publish.js` - to be created)
    - Create new app
    - Upload AAB/APK
    - Set metadata
    - Upload graphics
    - Commit release
 
+3. **iOS Automation** (Future)
+   - Fastlane integration
+   - Simulator automation
+   - Screenshot capture
+
+## Files That Need Cleanup
+
+- `QUICK_SETUP.md` - **OUTDATED** - Documents manual OAuth2 setup which we don't use anymore (we use gcloud CLI)
+- `docs/todo.md` - **OUTDATED** - Implementation tracking is stale, needs update
+- `docs/oauth-implementation.md` - **OUTDATED** - Documents old OAuth flow, we use gcloud now
+- `src/auth/oauth.js` - **LEGACY** - Old OAuth implementation, kept for reference but not used
+- `src/setup/oauth-setup.js` - **UNUSED** - May not be needed
+
+## Documentation Status
+
+- ✅ `README.md` - **ACCURATE** - User-facing docs are up to date
+- ✅ `docs/overview.md` - **ACCURATE** - High-level overview still relevant
+- ✅ `docs/api-breakdown.md` - **ACCURATE** - API documentation is current
+- ⚠️ `QUICK_SETUP.md` - **OUTDATED** - Should be removed or updated
+- ⚠️ `docs/todo.md` - **OUTDATED** - Needs refresh
+- ⚠️ `docs/oauth-implementation.md` - **OUTDATED** - Can be archived
+
 ---
 
-**Last Updated**: After completing OAuth2 authentication via gcloud CLI and GCP project creation modules.
+**Last Updated**: After completing Firebase project setup with interactive project picker and app management.
 
-**Key Achievement**: Eliminated manual OAuth2 setup by using gcloud CLI - true automation from Gmail account to authenticated state.
-
+**Key Achievements**:
+- ✅ Eliminated manual OAuth2 setup by using gcloud CLI
+- ✅ Full GCP project creation pipeline (project + APIs + service account + IAM)
+- ✅ Firebase project picker with multiple projects support
+- ✅ Smart app detection and config file downloads
+- ✅ Organized file structure (service-accounts/, firebase-config/)

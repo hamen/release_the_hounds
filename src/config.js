@@ -32,6 +32,12 @@ export const PATHS = {
   
   // State file
   STATE_FILE: '.autopublish/state.json',
+  
+  // Service account keys directory
+  SERVICE_ACCOUNT_DIR: '.autopublish/service-accounts',
+  
+  // Firebase config directory
+  FIREBASE_CONFIG_DIR: '.autopublish/firebase-config',
 };
 
 export const OAUTH_TIMEOUT = {

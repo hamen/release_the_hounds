@@ -193,6 +193,17 @@ async function saveProjectState(project) {
 }
 
 /**
+ * Switch to a different GCP project (update project state)
+ * @param {string} projectId - GCP project ID to switch to
+ * @returns {Promise<Object>} Project details
+ */
+export async function switchProject(projectId) {
+  const project = await getProject(projectId);
+  await saveProjectState(project);
+  return project;
+}
+
+/**
  * Load current project state
  */
 export async function loadProjectState() {

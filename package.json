@@ -17,10 +17,22 @@
     "automation",
     "publishing",
     "firebase",
-    "oauth2"
+    "gcp",
+    "google-cloud",
+    "mobile-apps",
+    "ci-cd",
+    "deployment"
   ],
-  "author": "",
+  "author": "Ivan Morgillo",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hamen/release-the-hounds.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hamen/release-the-hounds/issues"
+  },
+  "homepage": "https://github.com/hamen/release-the-hounds#readme",
   "dependencies": {
     "googleapis": "^144.0.0",
     "express": "^4.21.1",

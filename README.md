@@ -61,8 +61,11 @@ This will:
 - `./release-the-hounds.sh check-deps` - Check if all dependencies are installed
 - `./release-the-hounds.sh auth` - Authenticate with Google (uses gcloud CLI)
 - `./release-the-hounds.sh status` - Check authentication status
-- `./release-the-hounds.sh create-project` - Create a new Google Cloud project
+- `./release-the-hounds.sh create-project --name "My App"` - Create GCP project (with APIs, service account, IAM roles)
 - `./release-the-hounds.sh list-projects` - List all accessible projects
+- `./release-the-hounds.sh setup-service-account` - Setup service account for existing project
+- `./release-the-hounds.sh setup-firebase` - Setup Firebase project and apps (interactive)
+- `./release-the-hounds.sh setup-firebase --android-package "com.example.app" --ios-bundle "com.example.app"` - Setup with specific apps
 
 ## Authentication
 
@@ -85,10 +88,14 @@ The script will check for gcloud automatically and provide installation instruct
 ```
 release_the_hounds/
 ├── src/
-│   ├── auth/          # OAuth2 authentication
+│   ├── auth/          # Authentication (gcloud CLI)
+│   ├── gcp/           # GCP project, APIs, service accounts, IAM
+│   ├── firebase/      # Firebase project and app management
 │   ├── utils/         # Utility functions
 │   └── cli.js         # CLI entry point
 ├── .autopublish/      # Secrets and state (gitignored)
+│   ├── service-accounts/  # Service account keys
+│   └── firebase-config/   # Firebase config files
 ├── docs/              # Documentation
 └── package.json
 ```
