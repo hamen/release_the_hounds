@@ -33,6 +33,8 @@
      - `./release-the-hounds.sh list-projects` - List accessible projects
      - `./release-the-hounds.sh setup-service-account` - Setup service account for existing project
      - `./release-the-hounds.sh setup-firebase` - Setup Firebase project and apps
+     - `./release-the-hounds.sh generate-play-store-config` - Generate Play Store config template
+     - `./release-the-hounds.sh publish-play-store` - Publish app to Google Play Store
 
 3. **GCP Project Creation Module** (`src/gcp/project.js`)
    - Handles project creation via Cloud Resource Manager API
@@ -93,10 +95,27 @@
    - `selectOption()` - Choose from list of options
    - `confirm()` - Yes/no confirmation
 
+8. **Play Store Config Generator** (`src/play-store/config-generator.js`)
+   - Generates `play-store-config.json` template with pre-filled values from Firebase
+   - Reads Firebase Android app info (package name, display name)
+   - Provides sensible defaults for all required fields
+   - Guides user through next steps after generation
+
+9. **Play Store Publishing Module** (`src/play-store/`)
+   - **Authentication** (`auth.js`): Service account authentication with Android Publisher API
+   - **App Management** (`app.js`): Check/create Play Store apps (apps created on first upload)
+   - **Edit Sessions** (`edits.js`): Manage Play Console edit sessions
+   - **Releases** (`releases.js`): Upload AAB/APK files
+   - **Metadata** (`metadata.js`): Set app listing metadata (title, descriptions, category)
+   - **Content Rating** (`content-rating.js`): Automate content rating questionnaires
+   - **Graphics** (`graphics.js`): Upload screenshots, icon, feature graphic
+   - **Distribution** (`distribution.js`): Set pricing and release tracks
+   - **Config Loader** (`config-loader.js`): Load and validate `play-store-config.json`
+   - **State Management** (`state.js`): Track Play Store app state
+
 ### 🚧 Next Steps (Phase 3+)
 
-- ADB automation for Android screenshot capture
-- Play Store app creation and publishing
+- ADB automation for Android screenshot capture (postpone - user provides files for MVP)
 - iOS App Store automation (future)
 
 ## Technology Stack
@@ -126,6 +145,18 @@ release_the_hounds/
 │   │   └── iam.js               # IAM role assignment
 │   ├── firebase/
 │   │   └── project.js           # Firebase project & app management
+│   ├── play-store/
+│   │   ├── auth.js              # Play Store authentication
+│   │   ├── app.js               # App creation/checking
+│   │   ├── edits.js             # Edit session management
+│   │   ├── releases.js          # AAB/APK upload
+│   │   ├── metadata.js          # Metadata management
+│   │   ├── content-rating.js    # Content rating questionnaires
+│   │   ├── graphics.js          # Screenshots & graphics upload
+│   │   ├── distribution.js      # Pricing & distribution
+│   │   ├── config-loader.js     # Config file loading
+│   │   ├── config-generator.js  # Config template generation
+│   │   └── state.js             # State management
 │   └── utils/
 │       ├── fs.js                # File system utilities
 │       ├── check-dependencies.js # Dependency checking
@@ -233,6 +264,12 @@ release_the_hounds/
 
 # Non-interactive Firebase setup
 ./release-the-hounds.sh setup-firebase --no-interactive
+
+# Generate Play Store config template (pre-filled with Firebase data)
+./release-the-hounds.sh generate-play-store-config [--output <path>] [--force]
+
+# Publish to Play Store (requires play-store-config.json)
+./release-the-hounds.sh publish-play-store
 ```
 
 ## Streamlined Workflow
@@ -248,6 +285,15 @@ release_the_hounds/
    - Lists existing apps
    - Downloads config files automatically
    - Or prompts to create new apps interactively
+4. **Generate Play Store Config**: `./release-the-hounds.sh generate-play-store-config`
+   - Pre-fills package name and app title from Firebase
+   - Creates `play-store-config.json` template
+   - User edits config file with app details
+5. **Publish to Play Store**: `./release-the-hounds.sh publish-play-store`
+   - Reads `play-store-config.json`
+   - Uploads AAB/APK
+   - Sets all metadata, content rating, graphics
+   - Publishes to specified track
 
 ## Testing Notes
 
@@ -292,23 +338,18 @@ release_the_hounds/
 
 ## Next Major Features to Implement
 
-1. **ADB Automation** (`src/android/adb.js` - to be created)
+1. **ADB Automation** (`src/android/adb.js` - to be created, postponed for MVP)
    - Detect connected devices
    - Install and launch apps
    - Navigate UI programmatically
    - Capture screenshots
+   - **Status**: Postponed - user provides screenshot files for MVP
 
-2. **Play Store Publishing** (`src/play-store/publish.js` - to be created)
-   - Create new app
-   - Upload AAB/APK
-   - Set metadata
-   - Upload graphics
-   - Commit release
-
-3. **iOS Automation** (Future)
+2. **iOS App Store Automation** (Future)
    - Fastlane integration
    - Simulator automation
    - Screenshot capture
+   - App Store Connect API integration
 
 ## Files That Need Cleanup
 
@@ -329,7 +370,7 @@ release_the_hounds/
 
 ---
 
-**Last Updated**: After completing Firebase project setup with interactive project picker and app management.
+**Last Updated**: After implementing Play Store config template generator.
 
 **Key Achievements**:
 - ✅ Eliminated manual OAuth2 setup by using gcloud CLI
@@ -337,3 +378,5 @@ release_the_hounds/
 - ✅ Firebase project picker with multiple projects support
 - ✅ Smart app detection and config file downloads
 - ✅ Organized file structure (service-accounts/, firebase-config/)
+- ✅ Complete Play Store publishing automation (upload, metadata, content rating, graphics)
+- ✅ Play Store config template generator with Firebase pre-filling

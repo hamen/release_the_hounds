@@ -119,6 +119,8 @@ else
     echo "   ./release-the-hounds.sh list-projects        - List all accessible projects"
     echo "   ./release-the-hounds.sh setup-service-account - Create service account and grant roles"
     echo "   ./release-the-hounds.sh setup-firebase       - Create/link Firebase project and register apps"
+    echo "   ./release-the-hounds.sh generate-play-store-config - Generate Play Store config template"
+    echo "   ./release-the-hounds.sh publish-play-store   - Publish app to Google Play Store"
     echo ""
     echo "💡 Start with: ./release-the-hounds.sh check-deps"
 fi

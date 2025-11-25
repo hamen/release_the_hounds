@@ -17,6 +17,16 @@ import { question, confirm } from './utils/prompt.js';
 import { checkAllDependencies, printDependencyStatus } from './utils/check-dependencies.js';
 import { fileExists, deleteFile } from './utils/fs.js';
 import { PATHS } from './config.js';
+import { getPlayStoreClient, verifyPlayConsoleAccess } from './play-store/auth.js';
+import { createPlayStoreApp } from './play-store/app.js';
+import { createEdit, validateEdit, commitEdit, getExistingEdit } from './play-store/edits.js';
+import { uploadBuildWithEdit } from './play-store/releases.js';
+import { setListingMetadata } from './play-store/metadata.js';
+import { setContentRating, setDataSafety } from './play-store/content-rating.js';
+import { uploadScreenshotsFromDirectory, uploadAppIcon, uploadFeatureGraphic } from './play-store/graphics.js';
+import { setPricing, setReleaseTrack, setDistribution } from './play-store/distribution.js';
+import { loadPlayStoreConfig, getDefaultConfigPath, createExampleConfig } from './play-store/config-loader.js';
+import { generatePlayStoreConfigTemplate } from './play-store/config-generator.js';
 
 const program = new Command();
 
@@ -540,7 +550,9 @@ program
         console.log(`      Config: ${PATHS.FIREBASE_CONFIG_DIR}/GoogleService-Info.plist`);
       }
 
-      console.log('\n✅ Ready for app development and Play Store publishing!\n');
+      console.log('\n✅ Ready for app development and Play Store publishing!');
+      console.log('\n💡 Next step: Generate Play Store config template');
+      console.log('   Run: ./release-the-hounds.sh generate-play-store-config\n');
     } catch (error) {
       console.error('\n❌ Firebase setup failed:', error.message);
       if (error.code) {
@@ -552,6 +564,225 @@ program
       console.error('   - Verify project exists and is active');
       console.error('   - Note: If Firebase project already exists for another GCP project,');
       console.error('     you may need to use that GCP project or create a new Firebase project\n');
+      process.exit(1);
+    }
+  });
+
+// Generate Play Store config template command
+program
+  .command('generate-play-store-config')
+  .description('Generate Play Store config template pre-filled with Firebase data')
+  .option('--output <path>', 'Output path for config file', 'play-store-config.json')
+  .option('--force', 'Overwrite existing config file')
+  .action(async (options) => {
+    try {
+      const authStatus = await checkGcloudStatus();
+      if (!authStatus.authenticated) {
+        console.error('❌ Not authenticated. Run "./release-the-hounds.sh auth" first.');
+        process.exit(1);
+      }
+
+      // Check if file exists and --force not set
+      if (!options.force && await fileExists(options.output)) {
+        console.error(`\n❌ Config file already exists: ${options.output}`);
+        console.error('   Use --force to overwrite\n');
+        process.exit(1);
+      }
+
+      // Generate config template
+      await generatePlayStoreConfigTemplate(options.output, options.force);
+    } catch (error) {
+      console.error('\n❌ Failed to generate config template:', error.message);
+      if (error.message.includes('Firebase project')) {
+        console.error('\n💡 Run Firebase setup first:');
+        console.error('   ./release-the-hounds.sh setup-firebase\n');
+      }
+      process.exit(1);
+    }
+  });
+
+// Publish to Play Store command
+program
+  .command('publish-play-store')
+  .description('Publish app to Google Play Store')
+  .option('--config <path>', 'Path to play-store-config.json file', getDefaultConfigPath())
+  .option('--aab <path>', 'Override AAB path from config')
+  .option('--apk <path>', 'Override APK path from config')
+  .option('--track <track>', 'Override release track (internal, alpha, beta, production)')
+  .option('--dry-run', 'Validate and show what would be done without publishing')
+  .action(async (options) => {
+    try {
+      const authStatus = await checkGcloudStatus();
+      if (!authStatus.authenticated) {
+        console.error('❌ Not authenticated. Run "./release-the-hounds.sh auth" first.');
+        process.exit(1);
+      }
+
+      // Load config file
+      let config;
+      try {
+        config = await loadPlayStoreConfig(options.config);
+      } catch (error) {
+        if (error.message.includes('not found')) {
+          console.error(`\n❌ Config file not found: ${options.config}`);
+          console.error('\n💡 Create a config file:');
+          console.error(`   1. Copy example: cp play-store-config.example.json play-store-config.json`);
+          console.error(`   2. Edit play-store-config.json with your app details`);
+          console.error(`   3. Run this command again\n`);
+          process.exit(1);
+        }
+        throw error;
+      }
+
+      // Override config values from CLI options
+      if (options.aab) {
+        config.build.aab = options.aab;
+        config.build.apk = null;
+      }
+      if (options.apk) {
+        config.build.apk = options.apk;
+        config.build.aab = null;
+      }
+      if (options.track) {
+        config.distribution.track = options.track;
+      }
+
+      console.log('\n🚀 Publishing to Play Store...');
+      console.log(`   Package: ${config.packageName}`);
+      console.log(`   Track: ${config.distribution.track}`);
+
+      if (options.dryRun) {
+        console.log('\n🔍 DRY RUN MODE - No changes will be made\n');
+      }
+
+      // Step 1: Verify Play Console access
+      console.log('\n📋 Step 1: Verifying Play Console access...');
+      await verifyPlayConsoleAccess();
+
+      // Step 2: Check if app exists
+      console.log('\n📋 Step 2: Checking Play Store app...');
+      const appCheck = await createPlayStoreApp(config.packageName, config.metadata.title, 'en-US');
+      
+      if (!appCheck.exists && !appCheck.willBeCreated) {
+        console.log(`\n⚠️  App does not exist and cannot be auto-created`);
+        console.log(`\n💡 Options:`);
+        console.log(`   1. Create app manually in Play Console:`);
+        console.log(`      https://play.google.com/console → Create app`);
+        console.log(`      Package name: ${config.packageName}`);
+        console.log(`      Then run this command again`);
+        console.log(`   2. Upload AAB/APK first (will auto-create app)`);
+        console.log(`      The app will be created when you upload your first build\n`);
+        process.exit(1);
+      }
+
+      if (options.dryRun) {
+        console.log(`   ✅ Would create/edit app and edit session`);
+        console.log(`\n✅ Dry run complete. Remove --dry-run to publish.\n`);
+        return;
+      }
+
+      // Step 4: Upload build
+      console.log('\n📋 Step 4: Uploading build...');
+      const buildPath = config.build.aab || config.build.apk;
+      if (!buildPath || !(await fileExists(buildPath))) {
+        throw new Error(`Build file not found: ${buildPath}`);
+      }
+
+      const uploadResult = await uploadBuildWithEdit(config.packageName, buildPath);
+      const versionCode = uploadResult.versionCode;
+      const editId = uploadResult.editId;
+
+      // Step 4: Set metadata
+      console.log('\n📋 Step 4: Setting metadata...');
+      await setListingMetadata(
+        config.packageName,
+        editId,
+        'en-US',
+        config.metadata
+      );
+
+      // Step 5: Set content rating
+      if (config.contentRating) {
+        console.log('\n📋 Step 5: Setting content rating...');
+        await setContentRating(config.packageName, editId, config.contentRating);
+        
+        if (config.contentRating.dataSafety) {
+          await setDataSafety(config.packageName, editId, config.contentRating.dataSafety);
+        }
+      }
+
+      // Step 6: Upload screenshots
+      if (config.graphics?.screenshotsDir) {
+        console.log('\n📋 Step 6: Uploading screenshots...');
+        await uploadScreenshotsFromDirectory(
+          config.packageName,
+          editId,
+          'en-US',
+          config.graphics.screenshotsDir
+        );
+      }
+
+      // Step 7: Upload icon and feature graphic
+      if (config.graphics?.icon && await fileExists(config.graphics.icon)) {
+        console.log('\n📋 Step 7: Uploading app icon...');
+        await uploadAppIcon(config.packageName, editId, 'en-US', config.graphics.icon);
+      }
+
+      if (config.graphics?.featureGraphic && await fileExists(config.graphics.featureGraphic)) {
+        console.log('\n📋 Step 8: Uploading feature graphic...');
+        await uploadFeatureGraphic(config.packageName, editId, 'en-US', config.graphics.featureGraphic);
+      }
+
+      // Step 8: Set pricing
+      if (config.distribution?.pricing) {
+        console.log('\n📋 Step 9: Setting pricing...');
+        await setPricing(config.packageName, editId, config.distribution.pricing);
+      }
+
+      // Step 9: Set release track
+      console.log('\n📋 Step 10: Setting release track...');
+      await setReleaseTrack(
+        config.packageName,
+        editId,
+        config.distribution.track,
+        versionCode
+      );
+
+      // Step 10: Set distribution
+      if (config.distribution?.countries) {
+        console.log('\n📋 Step 11: Setting distribution...');
+        await setDistribution(config.packageName, editId, config.distribution.countries);
+      }
+
+      // Step 11: Validate edit
+      console.log('\n📋 Step 12: Validating edit...');
+      await validateEdit(config.packageName, editId);
+
+      // Step 12: Commit edit
+      console.log('\n📋 Step 13: Committing edit...');
+      await commitEdit(config.packageName, editId);
+
+      console.log('\n✅ App published successfully to Play Store!');
+      console.log(`   Track: ${config.distribution.track}`);
+      console.log(`   Version: ${versionCode}`);
+      console.log(`   Package: ${config.packageName}`);
+      console.log('\n💡 Next steps:');
+      console.log('   - Review the app in Play Console');
+      console.log('   - Complete any remaining manual steps (if any)');
+      console.log('   - Submit for review (if publishing to production)\n');
+    } catch (error) {
+      console.error('\n❌ Play Store publishing failed:', error.message);
+      if (error.code) {
+        console.error(`   Error code: ${error.code}`);
+      }
+      if (error.response?.data?.error) {
+        console.error(`   Details: ${JSON.stringify(error.response.data.error, null, 2)}`);
+      }
+      console.error('\n💡 Troubleshooting:');
+      console.error('   - Ensure service account has Play Console access (grant manually in Play Console)');
+      console.error('   - Verify config file is valid');
+      console.error('   - Check that build file exists and is valid');
+      console.error('   - Ensure all required metadata fields are provided\n');
       process.exit(1);
     }
   });

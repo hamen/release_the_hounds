@@ -56,6 +56,27 @@ This will:
    ./release-the-hounds.sh status
    ```
 
+4. **Create GCP project:**
+   ```bash
+   ./release-the-hounds.sh create-project --name "My App"
+   ```
+
+5. **Setup Firebase:**
+   ```bash
+   ./release-the-hounds.sh setup-firebase
+   ```
+
+6. **Generate Play Store config:**
+   ```bash
+   ./release-the-hounds.sh generate-play-store-config
+   ```
+   This creates `play-store-config.json` pre-filled with your Firebase app details.
+
+7. **Edit config and publish:**
+   - Edit `play-store-config.json` with your app details
+   - Build your app: `flutter build appbundle`
+   - Publish: `./release-the-hounds.sh publish-play-store`
+
 ### Available Commands
 
 - `./release-the-hounds.sh check-deps` - Check if all dependencies are installed
@@ -66,6 +87,8 @@ This will:
 - `./release-the-hounds.sh setup-service-account` - Setup service account for existing project
 - `./release-the-hounds.sh setup-firebase` - Setup Firebase project and apps (interactive)
 - `./release-the-hounds.sh setup-firebase --android-package "com.example.app" --ios-bundle "com.example.app"` - Setup with specific apps
+- `./release-the-hounds.sh generate-play-store-config` - Generate Play Store config template (pre-filled with Firebase data)
+- `./release-the-hounds.sh publish-play-store` - Publish app to Google Play Store
 
 ## Authentication
 
@@ -91,6 +114,7 @@ release_the_hounds/
 │   ├── auth/          # Authentication (gcloud CLI)
 │   ├── gcp/           # GCP project, APIs, service accounts, IAM
 │   ├── firebase/      # Firebase project and app management
+│   ├── play-store/    # Play Store publishing automation
 │   ├── utils/         # Utility functions
 │   └── cli.js         # CLI entry point
 ├── .autopublish/      # Secrets and state (gitignored)

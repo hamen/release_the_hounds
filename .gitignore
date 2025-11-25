@@ -9,6 +9,7 @@ yarn.lock
 !package.json
 !package-lock.json
 !tsconfig.json
+!play-store-config.example.json
 .env
 
 # Logs
